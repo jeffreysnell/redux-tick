@@ -1,0 +1,31 @@
+{
+    "name": "redux-tick",
+    "version": "1.0.0",
+    "description": "A library for triggering actions at fixed intervals against a redux store.",
+    "main": "dist/redux-tick.js",
+    "scripts": {
+        "test": "mocha-webpack 'tests/**/*.js'",
+        "test:watch": "mocha-webpack 'tests/**/*.js' --watch",
+        "build": "webpack"
+    },
+    "author": "Jeffrey Snell",
+    "license": "MIT",
+    "dependencies": {},
+    "devDependencies": {
+        "@babel/core": "^7.7.7",
+        "@babel/preset-env": "^7.7.7",
+        "babel-loader": "^8.0.6",
+        "chai": "^4.2.0",
+        "mocha": "^6.2.2",
+        "mocha-webpack": "^2.0.0-beta.0",
+        "prettier": "^1.19.1",
+        "testdouble": "^3.12.5",
+        "webpack": "^4.41.5",
+        "webpack-cli": "^3.3.10"
+    },
+    "babel": {
+        "presets": [
+            "@babel/preset-env"
+        ]
+    }
+}
