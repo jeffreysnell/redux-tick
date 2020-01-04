@@ -90,13 +90,110 @@
 /*!**********************!*\
   !*** ./src/index.js ***!
   \**********************/
-/*! exports provided: createTickEnhancer, Ticker */
+/*! exports provided: createTickEnhancer, stopAll, startAll, getTickers */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
 __webpack_require__.r(__webpack_exports__);
 /* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "createTickEnhancer", function() { return createTickEnhancer; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "stopAll", function() { return stopAll; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "startAll", function() { return startAll; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "getTickers", function() { return getTickers; });
+/* harmony import */ var _ticker__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./ticker */ "./src/ticker.js");
+
+/**
+ * Creates a redux store enhancer which will fire actions at a configured
+ * interval at your store.
+ *
+ * @param config {Object} the configuration for the actions see readme
+ * {
+ *      interval,
+ *      startImmediately: {boolean} true by default
+ *      actions: {
+ *          type : { type, payload, interval* },
+ *          type : { type, payload, interval* },
+ *          type : { type, payload, interval* }
+ *      }
+ *  }
+ * @returns {function} store enhancer
+ */
+
+var createTickEnhancer = function createTickEnhancer(config) {
+  var ticker = new _ticker__WEBPACK_IMPORTED_MODULE_0__["Ticker"](config);
+  return function (createStore) {
+    return function (reducer, preloadedState, enhancer) {
+      var store = createStore(reducer, preloadedState, enhancer);
+      ticker.bindStore(store);
+
+      if (config.startImmediately === undefined || config.startImmediately === true) {
+        ticker.start();
+      }
+
+      return store;
+    };
+  };
+};
+var stopAll = function stopAll() {
+  _ticker__WEBPACK_IMPORTED_MODULE_0__["Ticker"].getInstances().forEach(function (ticker) {
+    return ticker.stop();
+  });
+};
+var startAll = function startAll() {
+  _ticker__WEBPACK_IMPORTED_MODULE_0__["Ticker"].getInstances().forEach(function (ticker) {
+    return ticker.start();
+  });
+};
+var getTickers = function getTickers() {
+  return _ticker__WEBPACK_IMPORTED_MODULE_0__["Ticker"].getInstances();
+};
+
+/***/ }),
+
+/***/ "./src/maths.js":
+/*!**********************!*\
+  !*** ./src/maths.js ***!
+  \**********************/
+/*! exports provided: gcd */
+/***/ (function(module, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "gcd", function() { return gcd; });
+var gcdPair = function gcdPair(a, b) {
+  if (a == 0) {
+    return b;
+  }
+
+  return gcdPair(b % a, a);
+};
+
+var gcd = function gcd(numbers) {
+  var result = numbers[0];
+
+  for (var i = 1; i < numbers.length; i++) {
+    result = gcdPair(numbers[i], result);
+
+    if (result == 1) {
+      return 1;
+    }
+  }
+
+  return result;
+};
+
+/***/ }),
+
+/***/ "./src/ticker.js":
+/*!***********************!*\
+  !*** ./src/ticker.js ***!
+  \***********************/
+/*! exports provided: Ticker */
+/***/ (function(module, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
 /* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "Ticker", function() { return Ticker; });
+/* harmony import */ var _maths__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./maths */ "./src/maths.js");
 function _toConsumableArray(arr) { return _arrayWithoutHoles(arr) || _iterableToArray(arr) || _nonIterableSpread(); }
 
 function _nonIterableSpread() { throw new TypeError("Invalid attempt to spread non-iterable instance"); }
@@ -111,16 +208,7 @@ function _defineProperties(target, props) { for (var i = 0; i < props.length; i+
 
 function _createClass(Constructor, protoProps, staticProps) { if (protoProps) _defineProperties(Constructor.prototype, protoProps); if (staticProps) _defineProperties(Constructor, staticProps); return Constructor; }
 
-var createTickEnhancer = function createTickEnhancer(config) {
-  var ticker = new Ticker(config);
-  return function (createStore) {
-    return function (reducer, preloadedState, enhancer) {
-      var store = createStore(reducer, preloadedState, enhancer);
-      ticker.bindStore(store);
-      return store;
-    };
-  };
-};
+
 var DEFAULT_INTERVAL = 1000; // Provide 1 second default
 
 var _instances = [];
@@ -133,7 +221,7 @@ function () {
       return _instances;
     }
     /**
-     * @param config {Object} the configuration for the actions, if
+     * @param config {Object} the configuration for the actions see readme
      * {
      *      interval
      *      actions: {
@@ -151,24 +239,63 @@ function () {
 
     _classCallCheck(this, Ticker);
 
+    this.initialized = true;
     this.config = config;
-    this.defaultInterval = config && config.interval || DEFAULT_INTERVAL;
-    this.clickInterval = [this.defaultInterval].concat(_toConsumableArray(Object.values(config.actions).map(function (action) {
-      return action.interval;
+    this.defaultInterval = parseInt(config && config.interval) || DEFAULT_INTERVAL;
+    var intervals = [this.defaultInterval].concat(_toConsumableArray(Object.values(config.actions || {}).map(function (action) {
+      return parseInt(action.interval);
     })));
+    this.tickInterval = Object(_maths__WEBPACK_IMPORTED_MODULE_0__["gcd"])(intervals);
+
+    if (this.tickInterval === 1 && config.interval !== 1) {
+      console.warn("You have configured your actions such that an even will be fired every 1 ms, if that is what you desire please set the top level config interval to 1 as well as this has serious performanced implications");
+      this.initialized = false;
+    }
+
+    this.maxTick = Math.max.apply(Math, _toConsumableArray(intervals));
+    this.elapsed = 0;
   }
 
   _createClass(Ticker, [{
     key: "bindStore",
     value: function bindStore(store) {
+      this.store = store;
+    }
+  }, {
+    key: "handleTick",
+    value: function handleTick() {
+      var _this = this;
+
       var config = this.config;
+      this.elapsed = (this.elapsed + this.tickInterval) % this.maxTick;
 
       if (config && config.actions) {
-        Object.keys(config).forEach(function (key) {
-          var action = config[key];
+        var actions = config.actions;
+        Object.keys(actions).forEach(function (key) {
+          var action = actions[key];
 
-          if (action.action) {}
+          var interval = parseInt(action.interval) || _this.defaultInterval;
+
+          if (_this.elapsed % interval === 0) {
+            _this.store.dispatch(action);
+          }
         });
+      }
+    }
+  }, {
+    key: "start",
+    value: function start() {
+      if (this.initialized && !this.interval) {
+        this.interval = setInterval(this.handleTick.bind(this), this.tickInterval);
+        this.elapsed = 0;
+      }
+    }
+  }, {
+    key: "stop",
+    value: function stop() {
+      if (this.interval) {
+        clearInterval(this.interval);
+        this.interval = null;
       }
     }
   }]);
